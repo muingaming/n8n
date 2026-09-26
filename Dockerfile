@@ -25,7 +25,7 @@ RUN python3 -m venv /opt/jupyter
 
 ENV PATH="/opt/jupyter/bin:$PATH"
 
-# Install JupyterLab and password hashing support
+# Install JupyterLab
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
         jupyterlab \
@@ -35,26 +35,27 @@ RUN pip install --no-cache-dir --upgrade pip && \
 RUN useradd -m -s /bin/bash jupyter && \
     echo "jupyter ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/jupyter
 
-# Create workspace and config directory
-RUN mkdir -p /home/jupyter/workspace /home/jupyter/.jupyter && \
+# Create directories
+RUN mkdir -p /home/jupyter/workspace \
+    /home/jupyter/.jupyter && \
     chown -R jupyter:jupyter /home/jupyter
 
 WORKDIR /home/jupyter/workspace
 
 USER jupyter
 
-# Generate the real password hash for "muin"
-RUN python3 -c "from jupyter_server.auth import passwd; print(passwd('muin'))" > /tmp/jupyter_password && \
+# Generate password hash and put it directly into Jupyter config
+RUN HASH=$(python3 -c "from jupyter_server.auth import passwd; print(passwd('muin'))") && \
     printf '%s\n' \
     "c.ServerApp.ip = '0.0.0.0'" \
     "c.ServerApp.allow_remote_access = True" \
     "c.ServerApp.root_dir = '/home/jupyter/workspace'" \
-    "c.ServerApp.password = open('/tmp/jupyter_password').read().strip()" \
-    > /home/jupyter/.jupyter/jupyter_server_config.py && \
-    rm /tmp/jupyter_password
+    "c.ServerApp.password = '$HASH'" \
+    "c.ServerApp.open_browser = False" \
+    > /home/jupyter/.jupyter/jupyter_server_config.py
 
-# Render uses its own PORT environment variable
-EXPOSE 8888
+# Render's default port
+EXPOSE 10000
 
 # Start JupyterLab
-CMD ["bash", "-c", "jupyter lab --port=${PORT:-8888} --no-browser"]
+CMD ["bash", "-c", "jupyter lab --ip=0.0.0.0 --port=${PORT:-10000} --no-browser"]
