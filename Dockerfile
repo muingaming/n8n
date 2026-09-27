@@ -31,31 +31,24 @@ RUN pip install --no-cache-dir --upgrade pip && \
         jupyterlab \
         argon2-cffi
 
-# Create Jupyter user
-RUN useradd -m -s /bin/bash jupyter && \
-    echo "jupyter ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/jupyter
+# Workspace
+RUN mkdir -p /workspace
 
-# Create directories
-RUN mkdir -p /home/jupyter/workspace \
-    /home/jupyter/.jupyter && \
-    chown -R jupyter:jupyter /home/jupyter
+WORKDIR /workspace
 
-WORKDIR /home/jupyter/workspace
-
-USER jupyter
-
-# Generate password hash and put it directly into Jupyter config
+# Generate Jupyter password hash for "muin"
 RUN HASH=$(python3 -c "from jupyter_server.auth import passwd; print(passwd('muin'))") && \
+    mkdir -p /root/.jupyter && \
     printf '%s\n' \
     "c.ServerApp.ip = '0.0.0.0'" \
     "c.ServerApp.allow_remote_access = True" \
-    "c.ServerApp.root_dir = '/home/jupyter/workspace'" \
+    "c.ServerApp.root_dir = '/workspace'" \
     "c.ServerApp.password = '$HASH'" \
     "c.ServerApp.open_browser = False" \
-    > /home/jupyter/.jupyter/jupyter_server_config.py
+    > /root/.jupyter/jupyter_server_config.py
 
-# Render's default port
+# Render's port
 EXPOSE 10000
 
-# Start JupyterLab
-CMD ["bash", "-c", "jupyter lab --ip=0.0.0.0 --port=${PORT:-10000} --no-browser"]
+# Run JupyterLab as ROOT
+CMD ["bash", "-c", "jupyter lab --ip=0.0.0.0 --port=${PORT:-10000} --no-browser --allow-root"]
